@@ -106,8 +106,8 @@ print(dep.shape)
 
 
 #cnv
-'''#f = open("data/cnv_22Q4", "r")
-f = open("data_2023/OmicsCNGene.csv", "r")
+#f = open("data/cnv_22Q4", "r")
+'''f = open("data/23Q4/OmicsCNGene.csv", "r")
 #extract gene name and remove HGNC
 gene = f.readline()
 gene = np.array(gene.replace('\n','').replace('.','_').split(','));
@@ -138,7 +138,7 @@ exp = exp.replace({'NA':np.nan})
 exp = exp.replace({'':np.nan})
 exp = exp.astype('float')
 print(exp)
-exp.to_pickle('data_2023/cnv_original.pkl')
+exp.to_pickle('data/cnv_original.pkl')
 #'''
 
 #mut
@@ -301,11 +301,97 @@ print(druggable.sum())
 druggable.to_pickle('data/druggable_genome_update_correct.pkl')
 #'''
 
+#TCGA expression data
+'''tcga = pd.read_csv('data/TCGA_BRCA_clinical.txt', sep = '\t', index_col = 0)
+print(tcga)
+print(tcga.loc[:,['ER_status','HER2_status','TNBC']])
+tcga.to_pickle('data/TCGA_sample.pkl')
+exp = pd.read_csv('data/TCGA_BRCA_expression_status.txt', sep = '\t', index_col = 0)
+exp.to_pickle('data/exp_TCGA.pkl')
+#'''
+
+'''exp = pd.read_pickle('data/exp_TCGA.pkl')
+tcga = pd.read_pickle('data/TCGA_sample.pkl')
+print(exp)
+s = exp.columns.str.split('-')
+tmp = []
+for i in s:
+    tmp.append( i[0]+'-'+i[1]+'-'+i[2])
+expori = exp.copy()
+exp.columns = tmp
+tcga = tcga.loc[:,['ER_status','HER2_status','TNBC']].dropna(how = 'any')
+HER2 = tcga.loc[tcga.loc[:,'HER2_status'] == 'Positive',:]
+TNBC = tcga.loc[tcga.loc[:,'TNBC'] == 'Yes',:]
+ER = tcga.loc[~((tcga.index.isin(HER2.index)) | (tcga.index.isin(TNBC.index))),:]
+print(HER2)
+print(TNBC)
+print(ER)
+ER = expori.loc[:,exp.columns.isin(ER.index)]
+HER2 = expori.loc[:,exp.columns.isin(HER2.index)]
+TNBC = expori.loc[:,exp.columns.isin(TNBC.index)]
+print(HER2)
+print(TNBC)
+print(ER)
+tmp = [ER, HER2, TNBC]
+#save_obj(tmp, 'tcga_exp_type') 
+print(tmp)
+print(tcga)
+exp = exp.loc[:, exp.columns.isin(tcga.index)]
+print(exp)
+print(exp.columns[exp.columns.duplicated()])
+import matplotlib.backends.backend_pdf
+pdf = matplotlib.backends.backend_pdf.PdfPages('figure/exp_histogram.pdf')
+for i in range(3):
+    fig = plt.figure()
+    plt.hist(tmp[i].sum(axis=1)/len(tmp[i].columns), bins = 20)
+    pdf.savefig(fig)
+    plt.close()
+pdf.close()
+#'''
+
+#tcga subtype
+'''tmp = load_obj('data/tcga_exp_type') 
+print(tmp)
+import matplotlib.backends.backend_pdf
+pdf = matplotlib.backends.backend_pdf.PdfPages('figure/exp_histogram.pdf')
+name = ['ER+','HER2+','TNBC']
+for i in range(3):
+    fig = plt.figure()
+    plt.hist(tmp[i].sum(axis=1)/len(tmp[i].columns), bins = 20)
+    plt.xlabel('expression percentage of TCGA pts')
+    plt.ylabel('number of genes')
+    s = name[i]+ ' n=' + str(len(tmp[i].columns))
+    plt.title(s)
+    pdf.savefig(fig)
+    plt.close()
+pdf.close()
+#'''
+
+#subtype assignment table
+'''sample = pd.read_pickle('data/sample.pkl')
+dep = pd.read_pickle('data/ceres_dep.pkl')
+sample = sample.reindex( index = dep.index)
+sample = sample.loc[ sample.loc[:,'OncotreeLineage'] == 'Breast',:]
+sample = sample.loc[:, ['StrippedCellLineName','LegacySubSubtype']]
+sample.columns = ['cell_line_name','DepMap_subtype']
+sample.loc['ACH-001065','Clinical_Subtype'] = 'HER2_pos'
+sample.loc['ACH-001419','Clinical_Subtype'] = 'HER2_pos'
+sample.loc['ACH-002179','Clinical_Subtype'] = 'HER2_pos'
+sample.loc['ACH-002399','Clinical_Subtype'] = 'HER2_pos'
+sample.loc['ACH-001820','Clinical_Subtype'] = 'TNBC'
+print(sample)
+sample.loc[:,'DepMap_subtype'].fillna('', inplace = True)
+sample.loc[ sample.loc[:,'DepMap_subtype'].str.contains('HER2pos'),'Clinical_Subtype'] = 'HER2_pos'
+sample.loc[ sample.loc[:,'DepMap_subtype'] == 'ERneg_HER2neg','Clinical_Subtype'] = 'TNBC'
+sample.loc[ sample.loc[:,'DepMap_subtype'] == 'ERpos_HER2neg','Clinical_Subtype'] = 'ER_pos'
+print(sample)
+sample.to_csv('data/cell_line_subtype.csv')
+#'''
+
 ###############################
 #extracting prioritizing genes#
 ###############################
-
-#extracting priotorizing genes according to subtype
+#extracting priotorizing genes according to subtype, using prob thres at 0.5
 '''sample = pd.read_pickle('data/sample.pkl')
 dep = pd.read_pickle('data/ceres_dep.pkl')
 sample = sample.reindex( index = dep.index)
@@ -321,10 +407,10 @@ sample.loc[ sample.loc[:,'LegacySubSubtype'].str.contains('HER2pos'),'LegacySubS
 sample.loc[ sample.loc[:,'LegacySubSubtype'] == 'ERneg_HER2neg','LegacySubSubtype'] = 'TNBC'
 sample.loc[ sample.loc[:,'LegacySubSubtype'] == 'ERpos_HER2neg','LegacySubSubtype'] = 'ER_pos'
 #print(sample)
-#print(sample.loc[:,'LegacySubSubtype'].value_counts())
+print(sample.loc[:,'LegacySubSubtype'].value_counts())
 eff = pd.read_pickle('data/ceres_dep.pkl')
-eff = eff.loc[:,eff.isna().sum() < len(eff.index) * 0.2]
 eff = eff.reindex(index = sample.index)
+eff = eff.loc[:,eff.isna().sum() < len(eff.index) * 0.2]
 dep = pd.read_pickle('data/ceres_effect.pkl')
 dep = dep.reindex(index = sample.index)
 dep = dep.reindex(columns = eff.columns)
@@ -340,23 +426,42 @@ er = er.loc[:,er.columns.isin(druggable.index)]
 her = her.loc[:,her.columns.isin(druggable.index)]
 tnbc = tnbc.loc[:,tnbc.columns.isin(druggable.index)]
 
-er_gene = pd.DataFrame( np.nan, index = er.columns, columns = ['perc','median_eff','assignment'])
-her_gene = pd.DataFrame( np.nan, index = her.columns, columns = ['perc','median_eff','assignment'])
-tnbc_gene = pd.DataFrame( np.nan, index = tnbc.columns, columns = ['perc','median_eff','assignment'])
+tcga = load_obj('data/tcga_exp_type')
+thres = 0.95
+er = er.loc[:,er.columns.isin(tcga[0].index[ tcga[0].sum(axis=1) >= len(tcga[0].columns)*thres ])]
+her = her.loc[:,her.columns.isin(tcga[1].index[ tcga[1].sum(axis=1) >= len(tcga[1].columns)*thres ])]
+tnbc = tnbc.loc[:,tnbc.columns.isin(tcga[2].index[ tcga[2].sum(axis=1) >= len(tcga[2].columns)*thres ])]
+
+
+er_gene = pd.DataFrame( np.nan, index = er.columns, columns = ['perc','median_prob','assignment'])
+her_gene = pd.DataFrame( np.nan, index = her.columns, columns = ['perc','median_prob','assignment'])
+tnbc_gene = pd.DataFrame( np.nan, index = tnbc.columns, columns = ['perc','median_prob','assignment'])
 ceres_control = pd.read_csv('data/23Q4/common_ess_2021.csv', sep = ',',  index_col = 0)
 achilles_control = pd.read_csv('data/23Q4/AchillesCommonEssentialControls.csv', sep = ' ', index_col = 0)
 er_gene.loc[:,'perc'] = (er >= 0.5).sum()/len(er.index)
 her_gene.loc[:,'perc'] = (her >= 0.5).sum()/len(her.index)
 tnbc_gene.loc[:,'perc'] = (tnbc >= 0.5).sum()/len(tnbc.index)
-er_gene.loc[:,'median_eff'] =  dep.reindex(index = er.index, columns = er_gene.index).median()
-her_gene.loc[:,'median_eff'] =  dep.reindex(index = her.index, columns = her_gene.index).median()
-tnbc_gene.loc[:,'median_eff'] =  dep.reindex(index = tnbc.index, columns = tnbc_gene.index).median()
+#er_gene.loc[:,'median_eff'] =  dep.reindex(index = er.index, columns = er_gene.index).median()
+#her_gene.loc[:,'median_eff'] =  dep.reindex(index = her.index, columns = her_gene.index).median()
+#tnbc_gene.loc[:,'median_eff'] =  dep.reindex(index = tnbc.index, columns = tnbc_gene.index).median()
+er_gene.loc[:,'median_prob'] =  eff.reindex(index = er.index, columns = er_gene.index).median()
+her_gene.loc[:,'median_prob'] =  eff.reindex(index = her.index, columns = her_gene.index).median()
+tnbc_gene.loc[:,'median_prob'] =  eff.reindex(index = tnbc.index, columns = tnbc_gene.index).median()
+#er_gene.loc[:,'median_prob'] =  eff.reindex(index = er.index, columns = er_gene.index).mean()
+#her_gene.loc[:,'median_prob'] =  eff.reindex(index = her.index, columns = her_gene.index).mean()
+#tnbc_gene.loc[:,'median_prob'] =  eff.reindex(index = tnbc.index, columns = tnbc_gene.index).mean()
 er_gene.loc[ er_gene.loc[:,'perc']*8 >= 2, 'assignment'] = 'priority'
 her_gene.loc[ her_gene.loc[:,'perc'] >= 0.1, 'assignment'] = 'priority'
 tnbc_gene.loc[ tnbc_gene.loc[:,'perc'] >= 0.1, 'assignment'] = 'priority'
-er_gene.loc[ er_gene.loc[:,'perc']*8 < 2, 'assignment'] = 'lower 10%'
-her_gene.loc[ her_gene.loc[:,'perc'] < 0.1, 'assignment'] = 'lower 10%'
-tnbc_gene.loc[ tnbc_gene.loc[:,'perc'] < 0.1, 'assignment'] = 'lower 10%'
+#er_gene.loc[ er_gene.loc[:,'perc']*8 < 2, 'assignment'] = 'lower 10%'
+#her_gene.loc[ her_gene.loc[:,'perc'] < 0.1, 'assignment'] = 'lower 10%'
+#tnbc_gene.loc[ tnbc_gene.loc[:,'perc'] < 0.1, 'assignment'] = 'lower 10%'
+er_gene.loc[ er_gene.loc[:,'perc']*8 < 2, 'assignment'] = 'not priority'
+her_gene.loc[ her_gene.loc[:,'perc'] < 0.1, 'assignment'] = 'not priority'
+tnbc_gene.loc[ tnbc_gene.loc[:,'perc'] < 0.1, 'assignment'] = 'not priority'
+er_gene.loc[ er_gene.loc[:,'median_prob'] < 0.25, 'assignment'] = 'not priority'
+her_gene.loc[ her_gene.loc[:,'median_prob'] < 0.25, 'assignment'] = 'not priority'
+tnbc_gene.loc[ tnbc_gene.loc[:,'median_prob'] < 0.25, 'assignment'] = 'not priority'
 er_gene.loc[ er_gene.index.isin(achilles_control.index) | er_gene.index.isin(ceres_control.index)  , 'assignment'] = 'CommonEssCore'
 her_gene.loc[ her_gene.index.isin(achilles_control.index) | her_gene.index.isin(ceres_control.index)  , 'assignment'] = 'CommonEssCore'
 tnbc_gene.loc[ tnbc_gene.index.isin(achilles_control.index) | tnbc_gene.index.isin(ceres_control.index)  , 'assignment'] = 'CommonEssCore'
@@ -367,111 +472,76 @@ tnbc_gene.loc[  tnbc_gene.index.isin(ceres_control.index)  , 'assignment'] = 'Co
 print(er_gene)
 print(her_gene)
 print(tnbc_gene)
-er_gene.to_csv('R_data/er_gene.csv')
-her_gene.to_csv('R_data/her_gene.csv')
-tnbc_gene.to_csv('R_data/tnbc_gene.csv')
+er_gene.to_csv('R_data/er_gene_lowthres.csv')
+her_gene.to_csv('R_data/her_gene_lowthres.csv')
+tnbc_gene.to_csv('R_data/tnbc_gene_lowthres.csv')
 er_gene.loc[:,'gene'] = er_gene.index
 her_gene.loc[:,'gene'] = her_gene.index
 tnbc_gene.loc[:,'gene'] = tnbc_gene.index
 er_gene.loc[:,'molecular'] = 'ER+'
 her_gene.loc[:,'molecular'] = 'HER2+'
 tnbc_gene.loc[:,'molecular'] = 'TNBC'
-er_gene = pd.concat([er_gene, her_gene, tnbc_gene], axis = 0, ignore_index =  True)
-print(er_gene)
-er_gene.to_csv('R_data/all_gene.csv')
-#'''
-
-#extracting priotorizing genes all breast cancer cell lines
-'''sample = pd.read_pickle('data/sample.pkl')
-dep = pd.read_pickle('data/ceres_dep.pkl')
-sample = sample.reindex( index = dep.index)
-sample = sample.loc[ sample.loc[:,'OncotreeLineage'] == 'Breast',:]
-eff = pd.read_pickle('data/ceres_dep.pkl')
-eff = eff.loc[:,eff.isna().sum() < len(eff.index) * 0.2]
-eff = eff.reindex(index = sample.index)
-dep = pd.read_pickle('data/ceres_effect.pkl')
-dep = dep.reindex(index = sample.index)
-dep = dep.reindex(columns = eff.columns)
-eff = eff.loc[:,(eff >= 0.5).sum() >= 1]
-druggable = pd.read_pickle('data/druggable_genome_update_correct.pkl')
-druggable = druggable.loc[druggable.loc[:,'drug'] == 1,:]
-eff = eff.loc[:,eff.columns.isin(druggable.index)]
-er_gene = pd.DataFrame( np.nan, index = eff.columns, columns = ['perc','median_eff','assignment'])
-ceres_control = pd.read_csv('data/23Q4/common_ess_2021.csv', sep = ',',  index_col = 0)
-achilles_control = pd.read_csv('data/23Q4/AchillesCommonEssentialControls.csv', sep = ' ', index_col = 0)
-er_gene.loc[:,'perc'] = (eff >= 0.5).sum()/len(eff.index)
-er_gene.loc[:,'median_eff'] =  dep.reindex(index = eff.index, columns = er_gene.index).median()
-er_gene.loc[:,'assignment'] = ''
-er_gene.loc[ er_gene.loc[:,'perc'] >= 0.1, 'assignment'] = 'priority'
-er_gene.loc[ er_gene.loc[:,'perc'] < 0.1, 'assignment'] = 'lower 10%'
-er_gene.loc[ er_gene.index.isin(achilles_control.index) | er_gene.index.isin(ceres_control.index)  , 'assignment'] = 'CommonEssCore'
-ceres_control = pd.read_csv('data/23Q4/CRISPRInferredCommonEssentials.csv', sep = ' ',  index_col = 0)
-er_gene.loc[  er_gene.index.isin(ceres_control.index)  , 'assignment'] = 'CommonEssCore'
-print(er_gene)
 print(er_gene.loc[:,'assignment'].value_counts())
-er_gene.loc[:,'gene'] = er_gene.index
-#er_gene.to_csv('R_data/all_breast_gene_pri.csv')
+print(her_gene.loc[:,'assignment'].value_counts())
+print(tnbc_gene.loc[:,'assignment'].value_counts())
+er_gene = pd.concat([er_gene, her_gene, tnbc_gene], axis = 0, ignore_index =  True)
+er_gene.to_csv('R_data/all_gene_prob_lowthres.csv')
 #'''
 
 #generating priority genes
-'''gene = pd.read_csv('R_data/all_gene.csv', index_col=0 )
-gene.loc[:,'anno'] = gene.loc[:,'gene']
-gene.loc[:,'sel'] = 'above'
-gene.loc[ gene.loc[:,'median_eff'] > -0.65, 'anno'] = ''
-gene.loc[ gene.loc[:,'median_eff'] > -0.65, 'sel'] = 'below'
+'''
+gene = pd.read_csv('R_data/all_gene_prob_lowthres.csv', index_col=0 )
 gene = gene.loc[ gene.loc[:,'assignment'] == 'priority',:]
 print(gene)
-#gene.to_csv('R_data/all_gene_PIK3CA.csv')
+gene.loc[:,'anno'] = ''
+gene.loc[:,'sel'] = 'above'
+gene.loc[ gene.loc[:,'median_prob'] < 0.5, 'sel'] = 'below'
+print(gene.loc[gene.loc[:,'sel'] == 'above',:])
+for i in ['ER+','HER2+','TNBC']:
+    tmp = gene.loc[ (gene.loc[:,'molecular'] == i) & (gene.loc[:,'sel'] == 'above'),:]
+    gene.loc[tmp.loc[:,'median_prob'].nlargest(10).index,'anno'] = gene.loc[tmp.loc[:,'median_prob'].nlargest(10).index,'gene']
+print(gene)
+gene.to_csv('R_data/all_gene_prob_thres_lowthres.csv')
 #'''
 
-#supplementary tables subtype
-'''gene = pd.read_csv('R_data/all_gene_PIK3CA.csv', index_col = 0)
+'''
+gene = pd.read_csv('R_data/all_gene_prob_thres.csv', index_col = 0)
 print(gene)
-gene.loc[:,'median_eff'] = -gene.loc[:,'median_eff']
-gene = gene.rename( columns = {'perc':'fraction of cell lines essential','median_eff':'median genetic effect score','sel':'HIG'})
+for i in ['ER+','HER2+','TNBC']:
+    tmp = gene.loc[ (gene.loc[:,'molecular'] == i),:]
+    print(tmp.loc[:,'sel'].value_counts())
+gene.rename( columns = {'sel':'Top priority'}
+#'''
+
+#unclear if will use
+#supplementary tables subtype
+'''
+gene = pd.read_csv('R_data/all_gene_prob_thres_drug_lowthres.csv', index_col = 0)
+print(gene)
+gene = gene.rename( columns = {'perc':'fraction of cell lines essential','median_prob':'median dependency score','sel':'top priority'})
+output = []
 for i in ['ER+','HER2+','TNBC']:
     tmp = gene.loc[gene.loc[:,'molecular'] == i,:]
     tmp.index = tmp.loc[:,'gene']
-    tmp.loc[tmp.loc[:,'HIG'] == 'below','HIG'] = ''
-    tmp.loc[tmp.loc[:,'HIG'] == 'above','HIG'] = 'yes'
-    tmp = tmp.drop(columns = ['gene','anno','assignment','molecular'])
+    print(tmp.loc[:,'top priority'].value_counts())
+    tmp.loc[tmp.loc[:,'top priority'] == 'below','top priority'] = ''
+    tmp.loc[tmp.loc[:,'top priority'] == 'above','top priority'] = 'yes'
+    #tmp = tmp.drop(columns = ['gene','anno','assignment','Oncogene','TSG'])
+    tmp = tmp.drop(columns = ['gene','anno','assignment'])
     print(tmp)
-    tmp.to_csv('R_data/table_'+i+'.csv')
-#'''
-#supp tables all breast
-'''
-gene = pd.read_csv('R_data/all_breast_gene_PIK3CA.csv', index_col = 0)
-print(gene)
-gene.loc[:,'median_eff'] = -gene.loc[:,'median_eff']
-gene = gene.rename( columns = {'perc':'fraction of cell lines essential','median_eff':'median genetic effect score','sel':'HIG'})
-tmp = gene
-tmp.index = tmp.loc[:,'gene']
-tmp.loc[tmp.loc[:,'HIG'] == 'below','HIG'] = ''
-tmp.loc[tmp.loc[:,'HIG'] == 'above','HIG'] = 'yes'
-tmp = tmp.drop(columns = ['gene','anno','assignment'])
-print(tmp)
-tmp.to_csv('R_data/table_all_breast.csv')
-#'''
-
-'''
-gene = pd.read_csv('R_data/all_breast_gene_pri.csv', index_col = 0)
-gene.loc[:,'anno'] = gene.loc[:,'gene']
-gene.loc[:,'sel'] = 'above'
-gene.loc[ gene.loc[:,'median_eff'] > -0.65, 'anno'] = ''
-gene.loc[ gene.loc[:,'median_eff'] > -0.65, 'sel'] = 'below'
-gene = gene.loc[ gene.loc[:,'assignment'] == 'priority',:]
-print(gene)
-gene.loc[ gene.loc[:,'gene'] == 'PIK3CA','sel'] = 'exist_drug'
-gene.loc[ gene.loc[:,'gene'] == 'TYMS','sel'] = 'exist_drug'
-print(gene.loc[gene.loc[:,'sel'] == 'above',:])
-gene.to_csv('R_data/all_breast_gene_PIK3CA.csv')
+    output.append(tmp)
+    #tmp.to_csv('R_data/table_'+i+'.csv')
+output = pd.concat(output, axis = 0)
+output = output.sort_values(by = ['molecular','median dependency score'], ascending = [True, False])
+print(output)
+output.to_csv('R_data/table_all_combined.csv')
 #'''
 
 ##########################
 #analyzing priority genes#
 ##########################
 #MSK onco info
-'''gene = pd.read_csv('R_data/all_gene_PIK3CA.csv', index_col = 0)
+'''gene = pd.read_csv('R_data/all_gene_prob_thres.csv', index_col = 0)
 onco = pd.read_csv('data/23Q4/cancerGeneList.tsv', sep = '\t')
 onco_gene = onco.loc[onco.loc[:,'Is Oncogene'] == 'Yes',:]
 gene.loc[:,'Oncogene'] = 'No'
@@ -488,41 +558,8 @@ gene.to_pickle('data/breast_priority_gene_oncoinfo.pkl')
 #'''
 
 #open target query
-'''
-gene = pd.read_pickle('data/breast_priority_open_target.pkl')
-gene.loc[ (gene.loc[:,'sel'] == 'above') & (gene.loc[:,'clinical_phase'] >= 2), 'sel'] = 'exist_drug'
-gene.to_csv('R_data/breast_priority_open_target.csv')
-#'''
-
-'''query KnownDrugsQuery(
-  $ensgId: String!
-  $size: Int
-  $cursor: String
-  $freeTextQuery: String
-) {
-  target(ensemblId: $ensgId) {
-    id
-    knownDrugs(cursor: $cursor, freeTextQuery: $freeTextQuery, size: $size) {
-      count
-      rows {
-        phase
-        drug {
-          id
-          name
-          mechanismsOfAction {
-            rows {
-              actionType
-            }
-          }
-        }
-      }
-    }
-  }
-}'''
-#variables = {"ensgId": "ENSG00000141736","size":2 }
-
-'''
-gene = pd.read_pickle('data/breast_priority_gene_oncoinfo.pkl')
+#gene = pd.read_pickle('data/breast_priority_gene_oncoinfo.pkl')
+'''gene = pd.read_csv('R_data/all_gene_prob_thres_lowthres.csv')
 ingene = gene.loc[:,'gene'].unique()
 ingene = list(ingene)
 from gprofiler import GProfiler
@@ -531,6 +568,7 @@ result = gp.convert( organism = 'hsapiens', query = ingene, target_namespace = '
 print(result)
 #gene.loc[:,'open_target'] = np.nan 
 gene.loc[:,'clinical_phase'] = np.nan 
+gene.loc[:,'drug_name'] = '' 
 
 import requests
 import json
@@ -573,7 +611,7 @@ query_string_1 = """
           size: $size
         ) {
           count
-          rows { disease { id name } target { id approvedSymbol} drug { id name drugType mechanismsOfAction { rows { mechanismOfAction targets { id approvedSymbol}}}} clinicalPhase clinicalStatus}}}}
+          rows { disease { id name } target { id approvedSymbol} drug { id name drugType mechanismsOfAction { rows { mechanismOfAction targets { id approvedSymbol}}}} clinicalPhase clinicalStatus urls{url}}}}}
     """
 base_url = "https://api.platform.opentargets.org/api/v4/graphql"
 headers = {
@@ -590,149 +628,55 @@ for i in result.index:
     send_cnt = api_response['data']['disease']['chembl']['count']
     if send_cnt > 0:
         variables = {"ensemblId": gene_id, "efoId": disease, "size": send_cnt}
-        r = requests.post(base_url, headers=headers, json={"query": query_string_all, "variables": variables})
+        #r = requests.post(base_url, headers=headers, json={"query": query_string_all, "variables": variables})
+        r = requests.post(base_url, headers=headers, json={"query": query_string_1, "variables": variables})
         api_response = json.loads(r.text)
         max_phase = 0
+        drug_name = ''
+        #print(api_response)
         for j in api_response['data']['disease']['chembl']['rows']:
             if j['clinicalPhase'] > max_phase:
                 max_phase = j['clinicalPhase']
-            if max_phase >= 2:
-                break
+                #if j['drug'] != None:
+            if j['clinicalPhase'] >= 2:
+                if gene_name != 'TXNRD1':
+                    drug_name = j['drug']['name'] + '; ' + drug_name
+            #if max_phase >= 2:
+            #    break
         gene.loc[gene.loc[:,'gene'] == gene_name,'clinical_phase'] = max_phase
+        gene.loc[gene.loc[:,'gene'] == gene_name,'drug_name'] = drug_name
+        #gene.loc[gene.loc[:,'gene'] == gene_name,'drug_name'] = drug_name
 print(gene)
-gene.to_pickle('data/breast_priority_open_target.pkl')
+print(gene.loc[ gene.loc[:,'clinical_phase'] >= 2, :])
+gene.to_pickle('data/breast_priority_open_target_prob_rerun_lowthres.pkl')
 # Note: json_data will not be serialized by requests
 # exactly as it was in the original request.
 #data = '{ "query": "{ genes(first:20000) {nodes {name geneCategoriesWithSources {name} } } }" }'
 #response = requests.post('https://dgidb.org/api/graphql', headers=headers, data=data)
 #'''
 
-#open target drug search for further prioritized gene
+#open target query to csv
 '''
-gene = pd.read_csv('R_data/breast_priority_open_target.csv')
-gene = gene.loc[gene.loc[:,'sel'] == 'above',:]
-ingene = list(gene.loc[:,'gene'].unique())
-from gprofiler import GProfiler
-gp = GProfiler( return_dataframe = True)
-result = gp.convert( organism = 'hsapiens', query = ingene, target_namespace = 'ENSG')
-print(result)
-#gene.loc[:,'open_target'] = np.nan 
-
-import requests
-import json
-
-query_string_cnt =  """
-    query KnownDrugsQuery(
-  $ensgId: String!
-  $cursor: String
-  $freeTextQuery: String
-  $size: Int = 1
-) {
-  target(ensemblId: $ensgId) {
-    id
-    knownDrugs(cursor: $cursor, freeTextQuery: $freeTextQuery, size: $size) {
-      count
-      
-    }
-  }
-}
-   """
-query_string_all = """ query KnownDrugsQuery(
-  $ensgId: String!
-  $cursor: String
-  $freeTextQuery: String
-  $size: Int
-) {
-  target(ensemblId: $ensgId) {
-    id
-    knownDrugs(cursor: $cursor, freeTextQuery: $freeTextQuery, size: $size) {
-      count
-      cursor
-      rows {
-        phase
-        status
-        urls {
-          name
-          url
-        }
-        disease {
-          id
-          name
-        }
-        drug {
-          id
-          name
-          mechanismsOfAction {
-            rows {
-              actionType
-              targets {
-                id
-              }
-            }
-          }
-        }
-        drugType
-        mechanismOfAction
-      }
-    }
-  }
-}"""
-
-base_url = "https://api.platform.opentargets.org/api/v4/graphql"
-headers = {
-    # Already added when you pass json= but not when you pass data=
-    # 'Content-Type': 'application/json',
-}
-output = []
-for i in result.index:
-    print(i)
-    gene_id = result.loc[i,'converted']
-    gene_name = result.loc[i,'incoming']
-    variables = {"ensgId": gene_id,  "size": 1}
-    r = requests.post(base_url, headers=headers, json={"query": query_string_cnt, "variables": variables})
-    api_response = json.loads(r.text)
-    send_cnt = api_response['data']['target']['knownDrugs']['count']
-    if send_cnt > 0:
-        curs = 0
-        print(gene_id)
-        variables = {"ensgId": gene_id, "size": send_cnt}
-        r = requests.post(base_url, headers=headers, json={"query": query_string_all, "variables": variables})
-        api_response = json.loads(r.text)
-        print(api_response)
-        index = [tmp_cnt for tmp_cnt in range(send_cnt)]
-        tmp = pd.DataFrame(np.nan, index = index, columns = ['gene_id','gene_name','drug_name','drug_id','disease','disease_id','actionType','drugType','moa','phase','status','trial_name','url'])
-        for j in api_response['data']['target']['knownDrugs']['rows']:
-            flag = 0
-            for k in j['drug']['mechanismsOfAction']['rows']:
-                if k['actionType'] == 'INHIBITOR':
-                    for t in k['targets']:
-                        if t['id'] == gene_id:
-                            flag = 1
-                            break
-                    if flag == 1:
-                        break
-                if flag == 1:
-                    break
-            if flag == 0:
-                continue
-            tmp.loc[curs,'gene_id'] = gene_id
-            tmp.loc[curs,'gene_name'] = gene_name
-            tmp.loc[curs,'drug_name'] = j['drug']['name']
-            tmp.loc[curs,'drug_id'] = j['drug']['id']
-            tmp.loc[curs,'disease'] = j['disease']['name']
-            tmp.loc[curs,'disease_id'] = j['disease']['id']
-            tmp.loc[curs,'drugType'] = j['drugType']
-            tmp.loc[curs,'moa'] = j['mechanismOfAction']
-            tmp.loc[curs,'phase'] = j['phase']
-            curs = curs + 1
-        tmp = tmp.dropna( how = 'all')
-        output.append(tmp)
-        print(tmp)
-output = pd.concat(output, axis = 0, ignore_index = True)
-print(output)
-gene.to_pickle('data/breast_priority_open_target_drug.pkl')
+gene = pd.read_pickle('data/breast_priority_open_target.pkl')
+gene.loc[ (gene.loc[:,'sel'] == 'above') & (gene.loc[:,'clinical_phase'] >= 2), 'sel'] = 'exist_drug'
+gene.to_csv('R_data/breast_priority_open_target.csv')
 #'''
 
+#annotate results
+'''
+gene = pd.read_csv('R_data/all_gene_prob_thres_lowthres.csv', index_col = 0)
+#gene = pd.read_pickle('data/breast_priority_gene_oncoinfo.pkl')
+gene2 = pd.read_pickle('data/breast_priority_open_target_prob_rerun_lowthres.pkl')
+#print(gene)
+#print(gene2)
+print(gene2.loc[ gene2.loc[:,'clinical_phase'] >= 2, :])
+gene.loc[gene.loc[:,'gene'].isin(gene2.loc[gene2.loc[:,'clinical_phase']>=2,'gene']) & (gene.loc[:,'sel'] == 'above'), 'sel'] = 'exist_drug'
+#gene.loc[gene.loc[:,'gene'].isin(gene2.loc[gene2.loc[:,'clinical_phase']>=2,'gene']) & (gene.loc[:,'sel'] == 'above'), 'drug_name'] = 'exist_drug'
+gene.loc[:,'drug_name'] = gene2.loc[:,'drug_name'].values.tolist()
+gene.loc[ gene.loc[:,'sel'] != 'exist_drug', 'drug_name'] = ''
+print(gene.loc[(gene.loc[:,'sel'] == 'exist_drug'),:])
+gene.to_csv('R_data/all_gene_prob_thres_drug_lowthres.csv')
+#'''
 
 #functional enrichment
 '''gene = pd.read_pickle('data/breast_priority_open_target.pkl')
@@ -746,355 +690,12 @@ for i in ['ER+','HER2+','TNBC']:
     print(result.loc[:,['name','p_value','intersections']])
 #'''
 
-###################
-#mutation analysis#
-###################
-#CNV translation to MSK
-'''cancer_gene = pd.read_csv('data_2023/cancerGeneList.tsv', sep = '\t', index_col = 0)
-cnv = pd.read_pickle('data_2023/cnv_original.pkl')
-cnv = cnv.loc[:,cnv.columns.isin(cancer_gene.index)]
-print(cnv)
-cnv = 2**cnv - 1
-def tcnv(x):
-    y = 0
-    if x > 2**0.75:
-        y = 2
-    elif x > 2**0.4:
-        y = 1
-    elif x < 2 **(-1.2):
-        y = -2
-    elif x < 2 **(-0.6):
-        y = -1
-    return y
-cnv = cnv.applymap(tcnv)
-print(cnv)
-cnv = cnv.T
-cnv.index.name = 'Hugo_Symbol'
-print(cnv)
-cnv.to_csv('OncoKB_2023/cnv_input.txt', sep = '\t')
-#'''
-
-#mutational data extraction
-'''mut = pd.read_csv('data/23Q4/mut_maf.txt', sep= '\t')
-print(mut)
-print(mut.columns)
-mut.to_pickle('data/mut_maf_oncokb.pkl')
-#'''
-'''
-mut = pd.read_pickle('data/mut_maf_oncokb.pkl')
-print(mut.iloc[0,:])
-print(mut.loc[:,'Variant_annotation'].value_counts())
-#'''
-
-'''
-sample = pd.read_csv('data/23Q4/OmicsProfiles.csv', sep =',', index_col = 0)
-mut = pd.read_csv('data/23Q4/oncokb_mut', sep = '\t')
-print(sample)
-mut.loc[:,'DepMap_ID'] = ''
-for i in sample.index:
-    mut.loc[mut.loc[:,'Tumor_Sample_Barcode'] == i,'DepMap_ID'] = sample.loc[i,'ModelID']
-#print(mut.iloc[0,:])
-#print(mut.loc[:,'ONCOGENIC'].value_counts())
-print(mut)
-mut.to_pickle('data/23Q4/oncokb_mut.pkl')
-#'''
-
-'''
-mut = pd.read_csv('data/23Q4/oncokb_cnv', sep = '\t')
-print(mut.iloc[0,:])
-print(mut.loc[:,'ONCOGENIC'].value_counts())
-mut.to_pickle('data/23Q4/oncokb_cnv.pkl')
-#'''
-
-#oncogenic mutation according to subtype
-'''mut_type = 'mut'
-mut = pd.read_pickle('data/23Q4/oncokb_'+mut_type+'.pkl')
-if mut_type == 'mut':
-    mut = mut.loc[:, ['Hugo_Symbol','DepMap_ID','ONCOGENIC']]
-else:
-    mut = mut.loc[:,['HUGO_SYMBOL','SAMPLE_ID','ONCOGENIC']]
-mut.columns = ['Hugo_Symbol','DepMap_ID','ONCOGENIC']
-sample = pd.read_pickle('data/sample.pkl')
-dep = pd.read_pickle('data/ceres_dep.pkl')
-sample = sample.reindex( index = dep.index)
-sample = sample.loc[ sample.loc[:,'OncotreeLineage'] == 'Breast',:]
-sample = sample.loc[:, ['StrippedCellLineName','LegacyMolecularSubtype','LegacySubSubtype']]
-sample.loc['ACH-001065','LegacySubSubtype'] = 'HER2+'
-sample.loc['ACH-001419','LegacySubSubtype'] = 'HER2+'
-sample.loc['ACH-002179','LegacySubSubtype'] = 'HER2+'
-sample.loc['ACH-002399','LegacySubSubtype'] = 'HER2+'
-sample.loc['ACH-001820','LegacySubSubtype'] = 'TNBC'
-sample = sample.loc[ ~sample.loc[:,'LegacySubSubtype'].isna(),:]
-sample.loc[ sample.loc[:,'LegacySubSubtype'].str.contains('HER2pos'),'LegacySubSubtype'] = 'HER2+'
-sample.loc[ sample.loc[:,'LegacySubSubtype'] == 'ERneg_HER2neg','LegacySubSubtype'] = 'TNBC'
-sample.loc[ sample.loc[:,'LegacySubSubtype'] == 'ERpos_HER2neg','LegacySubSubtype'] = 'ER+'
-mut = mut.loc[ mut.loc[:,'DepMap_ID'].isin( sample.index),:]
-mut = mut.loc[ mut.loc[:,'ONCOGENIC'].isin( ['Oncogenic','Likely Oncogenic']),:]
-mut.loc[:,'ONCOGENIC'] = 1
-mut = pd.pivot_table(mut, values = 'ONCOGENIC', index = ['DepMap_ID'], columns = ['Hugo_Symbol'], fill_value = 0)
-mut = mut.reindex(index = sample.index)
-mut = mut.fillna(0)
-eff = pd.read_pickle('data/ceres_effect.pkl')
-eff = eff.reindex(index = sample.index)
-gene = pd.read_pickle('data/breast_priority_open_target.pkl')
-gene.loc[ (gene.loc[:,'sel'] == 'above') & (gene.loc[:,'clinical_phase'] >= 2), 'sel'] = 'exist_drug'
-from scipy import stats
-for i in ['ER+','HER2+','TNBC']:
-    print(i)
-    mut_sub = mut.loc[ sample.loc[:,'LegacySubSubtype'] == i,:]
-    if len(mut_sub) * 0.1 < 2:
-        cut_off = 2
-    else:
-        cut_off = len(mut_sub)*0.1
-    mut_sub = mut_sub.loc[:, mut_sub.sum() >= cut_off]
-    print( mut_sub.sum().sort_values())
-    print( mut_sub.mean().sort_values())
-#'''
-
-#oncogenic mutation all breast
-'''mut_type = 'cnv'
-mut = pd.read_pickle('data/23Q4/oncokb_'+mut_type+'.pkl')
-if mut_type == 'mut':
-    mut = mut.loc[:, ['Hugo_Symbol','DepMap_ID','ONCOGENIC']]
-else:
-    mut = mut.loc[:,['HUGO_SYMBOL','SAMPLE_ID','ONCOGENIC']]
-mut.columns = ['Hugo_Symbol','DepMap_ID','ONCOGENIC']
-sample = pd.read_pickle('data/sample.pkl')
-dep = pd.read_pickle('data/ceres_dep.pkl')
-sample = sample.reindex( index = dep.index)
-sample = sample.loc[ sample.loc[:,'OncotreeLineage'] == 'Breast',:]
-sample = sample.loc[:, ['StrippedCellLineName','LegacyMolecularSubtype','LegacySubSubtype']]
-mut = mut.loc[ mut.loc[:,'DepMap_ID'].isin( sample.index),:]
-mut = mut.loc[ mut.loc[:,'ONCOGENIC'].isin( ['Oncogenic','Likely Oncogenic']),:]
-mut.loc[:,'ONCOGENIC'] = 1
-mut = pd.pivot_table(mut, values = 'ONCOGENIC', index = ['DepMap_ID'], columns = ['Hugo_Symbol'], fill_value = 0)
-mut = mut.reindex(index = sample.index)
-mut = mut.fillna(0)
-eff = pd.read_pickle('data/ceres_effect.pkl')
-eff = eff.reindex(index = sample.index)
-from scipy import stats
-mut_sub = mut.copy()
-if len(mut_sub) * 0.1 < 2:
-    cut_off = 2
-else:
-    cut_off = len(mut_sub)*0.1
-mut_sub = mut_sub.loc[:, mut_sub.sum() >= cut_off]
-print( mut_sub.sum().sort_values())
-print( mut_sub.mean().sort_values())
-#'''
-
-#t test and cohen d for association
-#all breast
-'''
-mut_type = 'cnv'
-mut = pd.read_pickle('data/23Q4/oncokb_'+mut_type+'.pkl')
-if mut_type == 'mut':
-    mut = mut.loc[:, ['Hugo_Symbol','DepMap_ID','ONCOGENIC']]
-else:
-    mut = mut.loc[:,['HUGO_SYMBOL','SAMPLE_ID','ONCOGENIC']]
-mut.columns = ['Hugo_Symbol','DepMap_ID','ONCOGENIC']
-sample = pd.read_pickle('data/sample.pkl')
-dep = pd.read_pickle('data/ceres_dep.pkl')
-sample = sample.reindex( index = dep.index)
-sample = sample.loc[ sample.loc[:,'OncotreeLineage'] == 'Breast',:]
-mut = mut.loc[ mut.loc[:,'DepMap_ID'].isin( sample.index),:]
-mut = mut.loc[ mut.loc[:,'ONCOGENIC'].isin( ['Oncogenic','Likely Oncogenic']),:]
-mut.loc[:,'ONCOGENIC'] = 1
-mut = pd.pivot_table(mut, values = 'ONCOGENIC', index = ['DepMap_ID'], columns = ['Hugo_Symbol'], fill_value = 0)
-mut = mut.reindex(index = sample.index)
-mut = mut.fillna(0)
-eff = pd.read_pickle('data/ceres_effect.pkl')
-eff = eff.reindex(index = sample.index)
-gene = pd.read_csv('R_data/all_breast_gene_pri.csv', index_col = 0)
-from scipy import stats
-dep = eff.copy()
-dep = dep.loc[:, dep.columns.isin( gene.loc[ (gene.loc[:,'assignment'] == 'priority'),'gene'])]
-mut_sub = mut.copy()
-if len(mut_sub) * 0.1 < 2:
-    cut_off = 2
-else:
-    cut_off = len(mut_sub)*0.1
-mut_sub = mut_sub.loc[:, mut_sub.sum() >= cut_off]
-#dep = dep.reindex(columns = ['TEAD4','RETSAT'])
-p_val = pd.DataFrame( np.nan, index = dep.columns, columns = mut_sub.columns)
-cohen_d = pd.DataFrame( np.nan, index = dep.columns, columns = mut_sub.columns)
-for j in p_val.index:
-    for k in p_val.columns:
-        a = dep.loc[ mut_sub.loc[:,k] == 1,j]
-        b = dep.loc[ mut_sub.loc[:,k] == 0,j]
-        t, p = stats.ttest_ind( a, b)
-        p_val.loc[j,k] = p
-        s = np.sqrt(((len(a) - 1)*(a.std())**2 + (len(b)-1)*(b.std())**2) / (len(a)+len(b)-2))
-        d = (a.mean() - b.mean())/s
-        cohen_d.loc[j,k] = d
-print(p_val)
-print(cohen_d)
-i = 'breast'
-p_val.to_pickle('data/'+mut_type+'_'+i+'_ttest_p_val.pkl')
-cohen_d.to_pickle('data/'+mut_type+'_'+i+'_ttest_cohen_d.pkl')
-#'''
-
-#according to subtype
-'''mut = pd.read_pickle('data/23Q4/oncokb_cnv.pkl')
-mut = mut.loc[:,['HUGO_SYMBOL','SAMPLE_ID','ONCOGENIC']]
-mut.columns = ['Hugo_Symbol','DepMap_ID','ONCOGENIC']
-sample = pd.read_pickle('data/sample.pkl')
-dep = pd.read_pickle('data/ceres_dep.pkl')
-sample = sample.reindex( index = dep.index)
-sample = sample.loc[ sample.loc[:,'OncotreeLineage'] == 'Breast',:]
-sample = sample.loc[:, ['StrippedCellLineName','LegacyMolecularSubtype','LegacySubSubtype']]
-sample.loc['ACH-001065','LegacySubSubtype'] = 'HER2+'
-sample.loc['ACH-001419','LegacySubSubtype'] = 'HER2+'
-sample.loc['ACH-002179','LegacySubSubtype'] = 'HER2+'
-sample.loc['ACH-002399','LegacySubSubtype'] = 'HER2+'
-sample.loc['ACH-001820','LegacySubSubtype'] = 'TNBC'
-sample = sample.loc[ ~sample.loc[:,'LegacySubSubtype'].isna(),:]
-sample.loc[ sample.loc[:,'LegacySubSubtype'].str.contains('HER2pos'),'LegacySubSubtype'] = 'HER2+'
-sample.loc[ sample.loc[:,'LegacySubSubtype'] == 'ERneg_HER2neg','LegacySubSubtype'] = 'TNBC'
-sample.loc[ sample.loc[:,'LegacySubSubtype'] == 'ERpos_HER2neg','LegacySubSubtype'] = 'ER+'
-mut = mut.loc[ mut.loc[:,'DepMap_ID'].isin( sample.index),:]
-mut = mut.loc[ mut.loc[:,'ONCOGENIC'].isin( ['Oncogenic','Likely Oncogenic']),:]
-mut.loc[:,'ONCOGENIC'] = 1
-mut = pd.pivot_table(mut, values = 'ONCOGENIC', index = ['DepMap_ID'], columns = ['Hugo_Symbol'], fill_value = 0)
-mut = mut.reindex(index = sample.index)
-mut = mut.fillna(0)
-eff = pd.read_pickle('data/ceres_effect.pkl')
-eff = eff.reindex(index = sample.index)
-gene = pd.read_pickle('data/breast_priority_open_target.pkl')
-gene.loc[ (gene.loc[:,'sel'] == 'above') & (gene.loc[:,'clinical_phase'] >= 2), 'sel'] = 'exist_drug'
-from scipy import stats
-for i in ['ER+','HER2+','TNBC']:
-    print(i)
-    dep = eff.loc[ sample.loc[:,'LegacySubSubtype'] == i,:]
-    #dep = dep.loc[:, dep.columns.isin( gene.loc[ (gene.loc[:,'sel'] == 'above') & (gene.loc[:,'molecular'] == i),'gene'])]
-    dep = dep.loc[:, dep.columns.isin( gene.loc[ (gene.loc[:,'molecular'] == i),'gene'])]
-    mut_sub = mut.loc[ sample.loc[:,'LegacySubSubtype'] == i,:]
-    if len(mut_sub) * 0.1 < 2:
-        cut_off = 2
-    else:
-        cut_off = len(mut_sub)*0.1
-    mut_sub = mut_sub.loc[:, mut_sub.sum() >= cut_off]
-    p_val = pd.DataFrame( np.nan, index = dep.columns, columns = mut_sub.columns)
-    cohen_d = pd.DataFrame( np.nan, index = dep.columns, columns = mut_sub.columns)
-    for j in p_val.index:
-        for k in p_val.columns:
-            a = dep.loc[ mut_sub.loc[:,k] == 1,j]
-            b = dep.loc[ mut_sub.loc[:,k] == 0,j]
-            t, p = stats.ttest_ind( a, b)
-            p_val.loc[j,k] = p
-            s = np.sqrt(((len(a) - 1)*(a.std())**2 + (len(b)-1)*(b.std())**2) / (len(a)+len(b)-2))
-            d = (a.mean() - b.mean())/s
-            cohen_d.loc[j,k] = d
-    p_val.to_pickle('data/cnv_'+i+'_ttest_p_val.pkl')
-    print(p_val)
-    cohen_d.to_pickle('data/cnv_'+i+'_ttest_cohen_d.pkl')
-    print(cohen_d)
-#'''
-
-'''
-output = []
-for j in ['mut','cnv']:
-    for i in ['ER+','HER2+','TNBC','breast']:
-        print(i)
-        p_val = pd.read_pickle('data/'+j+'_'+i+'_ttest_p_val.pkl')
-        cohen_d = pd.read_pickle('data/'+j+'_'+i+'_ttest_cohen_d.pkl')
-        p_val = p_val.stack(dropna = False)
-        p_val = pd.DataFrame( p_val.values, index = p_val.index, columns = ['p_val'])
-        p_val = p_val.reset_index(names = ['gene_1','gene_2'])
-        cohen_d = cohen_d.stack(dropna = False)
-        cohen_d = pd.DataFrame( cohen_d.values, index = cohen_d.index, columns = ['cohen_d'])
-        p_val.loc[:,'cohen_d'] = cohen_d.values
-        p_val.loc[:,'g2_status'] = j
-        p_val.loc[:,'molecular'] = i
-        output.append(p_val)
-        #cohen_d = cohen_d.reset_index(names = ['gene_1','gene_2'])
-        print(p_val)
-        #print(cohen_d)
-result = pd.concat(output, axis = 0)
-print(result)
-result.to_pickle('data/breast_priority_association_result.pkl')
-#'''
-
-#FDR correction
-'''result_all = pd.read_pickle('data/breast_priority_association_result.pkl')
-import statsmodels.stats.multitest as stat
-result_all = result_all.dropna(how = 'any')
-#result_all = result_all.loc[ result_all.loc[:,'molecular'] == 'breast',:]
-result = result.loc[ result.loc[:,'molecular'] != 'breast',:]
-output = []
-for i in ['mut','cnv']:
-    result = result_all.loc[ result_all.loc[:,'g2_status'] == i,:]
-    tmp = result.loc[:,'p_val']
-    result.loc[:,'fdr'] = np.nan
-    reject, correct, _ , _ = stat.multipletests(tmp, method = 'fdr_bh')
-    result.loc[:,'fdr'] = correct
-    result.loc[:,'sel'] = 'not_sig'
-    result.loc[ (result.loc[:,'fdr'] < 0.1) & (result.loc[:,'cohen_d'].abs() >= 1), 'sel'] = 'sig'
-    result.loc[ :,'name'] = ''
-    idx = result.loc[:,'sel'] == 'sig'
-    result.loc[ idx,'name'] = result.loc[idx,'gene_1'] + '_' + result.loc[idx,'gene_2']
-    print(result.loc[ result.loc[:,'sel'] == 'sig',:])
-    result.loc[:,'fdr'] = -np.log10( result.loc[:,'fdr'])
-    output.append(result)
-output = pd.concat( output, axis = 0)
-print(output)
-#output.to_csv('R_data/mut_association_breast.csv')
-result.to_pickle('data/breast_priority_association_fdr_mut.pkl')
-#'''
-
-
-'''result_all = pd.read_pickle('data/breast_priority_association_result.pkl')
-import statsmodels.stats.multitest as stat
-result_all = result_all.dropna(how = 'any')
-result_all = result_all.loc[ result_all.loc[:,'molecular'] != 'breast',:]
-#result = result.loc[ result.loc[:,'molecular'] != 'breast',:]
-output = []
-for i in ['mut','cnv']:
-    result = result_all.loc[ result_all.loc[:,'g2_status'] == i,:]
-    tmp = result.loc[:,'p_val']
-    result.loc[:,'fdr'] = np.nan
-    reject, correct, _ , _ = stat.multipletests(tmp, method = 'fdr_bh')
-    result.loc[:,'fdr'] = correct
-    result.loc[:,'sel'] = 'not_sig'
-    result.loc[ (result.loc[:,'fdr'] < 0.1) & (result.loc[:,'cohen_d'].abs() >= 1), 'sel'] = 'sig'
-    result.loc[ :,'name'] = ''
-    idx = result.loc[:,'sel'] == 'sig'
-    result.loc[ idx,'name'] = result.loc[idx,'gene_1'] + '_' + result.loc[idx,'gene_2']
-    print(result.loc[ result.loc[:,'sel'] == 'sig',:])
-    result.loc[:,'fdr'] = -np.log10( result.loc[:,'fdr'])
-    output.append(result)
-output = pd.concat( output, axis = 0)
-print(output)
-output.to_csv('R_data/mut_association_breast_type_specific.csv')
-#result.to_pickle('data/breast_priority_association_fdr_mut.pkl')
-#'''
-
-
-
-'''result = pd.read_pickle('data/breast_priority_association_result.pkl')
-import statsmodels.stats.multitest as stat
-result = result.dropna(how = 'any')
-result = result.loc[ result.loc[:,'g2_status'] == 'cnv',:]
-tmp = result.loc[:,'p_val'].dropna()
-result.loc[:,'fdr'] = np.nan
-reject, correct, _ , _ = stat.multipletests(tmp, method = 'fdr_bh')
-result.loc[:,'fdr'] = correct
-result.loc[:,'sel'] = 0
-result.loc[ (result.loc[:,'fdr'] < 0.1) & (result.loc[:,'cohen_d'].abs() >= 1), 'sel'] = 1
-result.loc[ :,'name'] = ''
-idx = result.loc[:,'sel'] == 1
-result.loc[ idx,'name'] = result.loc[idx,'gene_1'] + '_' + result.loc[idx,'gene_2']
-print(result.loc[:,'sel'].sum())
-print(result.loc[ result.loc[:,'sel'] == 1,:])
-#result.to_pickle('data/breast_priority_association_fdr_mut.pkl')
-#'''
-
-
 #heatmap annotation
-'''gene = pd.read_csv('R_data/breast_priority_open_target.csv')
+#gene = pd.read_csv('R_data/breast_priority_open_target.csv')
+gene = pd.read_csv('R_data/all_gene_prob_thres_drug_lowthres.csv')
 gene = gene.loc[gene.loc[:,'sel'] == 'above',:]
-gene.to_csv('R_data/priority_list.csv')
-dep = pd.read_pickle('data/ceres_effect.pkl')
+gene.to_csv('R_data/priority_list_lowthres.csv')
+dep = pd.read_pickle('data/ceres_dep.pkl')
 sample = pd.read_pickle('data/sample.pkl')
 sample = sample.reindex( index = dep.index)
 sample = sample.loc[ sample.loc[:,'OncotreeLineage'] == 'Breast',:]
@@ -1107,7 +708,7 @@ sample.loc['ACH-001820','LegacySubSubtype'] = 'TNBC'
 sample.loc[ sample.loc[:,'LegacySubSubtype'].str.contains('HER2pos'),'LegacySubSubtype'] = 'HER2+'
 sample.loc[ sample.loc[:,'LegacySubSubtype'] == 'ERneg_HER2neg','LegacySubSubtype'] = 'TNBC'
 sample.loc[ sample.loc[:,'LegacySubSubtype'] == 'ERpos_HER2neg','LegacySubSubtype'] = 'ER+'
-sample.loc['ACH-001396','LegacySubSubtype'] = 'ER+'
+#sample.loc['ACH-001396','LegacySubSubtype'] = 'ER+'
 ingene = list(gene.loc[:,'gene'].unique())
 dep = dep.reindex(columns = ingene)
 dep = dep.reindex(index = sample.index, columns = ingene)
@@ -1132,6 +733,638 @@ print(sample)
 sample.to_csv('R_data/priority_heatmap_anno_row.csv')
 anno.to_csv('R_data/priority_heatmap_anno_col.csv')
 dep.to_csv('R_data/priority_heatmap_data.csv')
+print( anno.loc[(anno.loc[:,'ER'] == True) & (anno.loc[:,'HER2'] == True) & (anno.loc[:,'TNBC'] == True),:])
 #dep.to_csv('R_data/priority_dep_breast_cell_line.csv')
 #dep.to_csv('R_data/priority_dep_breast_cell_line.csv')
+#'''
+###################
+#mutation analysis#
+###################
+#sample breast
+'''sample = pd.read_pickle('data/sample.pkl')
+dep = pd.read_pickle('data/ceres_dep.pkl')
+sample = sample.reindex( index = dep.index)
+sample = sample.loc[ sample.loc[:,'OncotreeLineage'] == 'Breast',:]
+sample = sample.loc[:, ['StrippedCellLineName','LegacyMolecularSubtype','LegacySubSubtype']]
+sample.loc['ACH-001065','LegacySubSubtype'] = 'HER2+'
+sample.loc['ACH-001419','LegacySubSubtype'] = 'HER2+'
+sample.loc['ACH-002179','LegacySubSubtype'] = 'HER2+'
+sample.loc['ACH-002399','LegacySubSubtype'] = 'HER2+'
+sample.loc['ACH-001820','LegacySubSubtype'] = 'TNBC'
+sample = sample.loc[ ~sample.loc[:,'LegacySubSubtype'].isna(),:]
+sample.loc[ sample.loc[:,'LegacySubSubtype'].str.contains('HER2pos'),'LegacySubSubtype'] = 'HER2+'
+sample.loc[ sample.loc[:,'LegacySubSubtype'] == 'ERneg_HER2neg','LegacySubSubtype'] = 'TNBC'
+sample.loc[ sample.loc[:,'LegacySubSubtype'] == 'ERpos_HER2neg','LegacySubSubtype'] = 'ER+'
+print(sample)
+sample.to_pickle('data/sample_breast.pkl')
+#'''
+
+#calculate CNV spearman correlation
+'''mut_type = 'cnv'
+cnv = pd.read_pickle('data/cnv_breast_ori.pkl')
+sample = pd.read_pickle('data/sample.pkl')
+dep = pd.read_pickle('data/ceres_dep.pkl')
+sample = sample.reindex( index = dep.index)
+sample = sample.loc[ sample.loc[:,'OncotreeLineage'] == 'Breast',:]
+sample = sample.loc[:, ['StrippedCellLineName','LegacyMolecularSubtype','LegacySubSubtype']]
+sample.loc['ACH-001065','LegacySubSubtype'] = 'HER2+'
+sample.loc['ACH-001419','LegacySubSubtype'] = 'HER2+'
+sample.loc['ACH-002179','LegacySubSubtype'] = 'HER2+'
+sample.loc['ACH-002399','LegacySubSubtype'] = 'HER2+'
+sample.loc['ACH-001820','LegacySubSubtype'] = 'TNBC'
+sample = sample.loc[ ~sample.loc[:,'LegacySubSubtype'].isna(),:]
+sample.loc[ sample.loc[:,'LegacySubSubtype'].str.contains('HER2pos'),'LegacySubSubtype'] = 'HER2+'
+sample.loc[ sample.loc[:,'LegacySubSubtype'] == 'ERneg_HER2neg','LegacySubSubtype'] = 'TNBC'
+sample.loc[ sample.loc[:,'LegacySubSubtype'] == 'ERpos_HER2neg','LegacySubSubtype'] = 'ER+'
+gene = pd.read_csv('R_data/all_gene_prob_thres.csv')
+#gene = gene.loc[gene.loc[:,'sel'] != 'below',:]
+#gene = gene.loc[~gene.loc[:,'anno'].isna(),:]
+#print(gene)
+dep = dep.reindex(index = sample.index)
+cnv = cnv.reindex(index = sample.index)
+eff = dep.copy()
+from scipy import stats
+for i in ['ER+','HER2+','TNBC']:
+    print(i)
+    dep = eff.loc[ sample.loc[:,'LegacySubSubtype'] == i,:]
+    #dep = dep.loc[:, dep.columns.isin( gene.loc[ (gene.loc[:,'sel'] == 'above') & (gene.loc[:,'molecular'] == i),'gene'])]
+    dep = dep.loc[:, dep.columns.isin( gene.loc[ (gene.loc[:,'molecular'] == i),'gene'])]
+    mut_sub = cnv.loc[ sample.loc[:,'LegacySubSubtype'] == i,:]
+    p_val = pd.DataFrame( np.nan, index = dep.columns, columns = mut_sub.columns)
+    cohen_d = pd.DataFrame( np.nan, index = dep.columns, columns = mut_sub.columns)
+    for j in p_val.index:
+        for k in p_val.columns:
+            cohen_d.loc[j,k],p_val.loc[j,k] =  stats.spearmanr(dep.loc[:,j],mut_sub.loc[:,k],nan_policy = 'omit')
+    p_val = p_val.dropna(how = 'all', axis = 1)
+    cohen_d = cohen_d.dropna(how = 'all', axis = 1)
+    p_val.to_pickle('data/'+mut_type+'_'+i+'_spearman_p_val.pkl')
+    print(p_val)
+    cohen_d.to_pickle('data/'+mut_type+'_'+i+'_spearman_r.pkl')
+    print(cohen_d)
+#'''
+
+#mutational data extraction
+'''mut = pd.read_csv('data/23Q4/mut_maf.txt', sep= '\t')
+print(mut)
+print(mut.columns)
+mut.to_pickle('data/mut_maf_oncokb.pkl')
+#'''
+'''mut = pd.read_pickle('data/mut_maf_oncokb.pkl')
+cnv = pd.read_pickle('data/cnv_breast.pkl')
+mut = mut.loc[ mut.loc[:,'DepMap_ID'].isin(cnv.index),:]
+print(mut)
+print(mut.loc[:,'Variant_annotation'].value_counts())
+
+mut.to_pickle('data/mut_breast.pkl')
+#print(mut.iloc[0,:])
+#'''
+'''mut = pd.read_pickle('data/mut_breast.pkl')
+mut = mut.loc[ mut.loc[:,'Variant_annotation'] != 'silent',:]
+print(mut)
+mut = mut.loc[:,['Hugo_Symbol','DepMap_ID']]
+mut.loc[:,'mut'] = 1
+mut = mut.drop_duplicates()
+mut = mut.pivot( columns = 'Hugo_Symbol', index = 'DepMap_ID', values = 'mut')
+mut = mut.fillna(0)
+print(mut)
+mut.to_pickle('data/mut_onehot.pkl')
+#'''
+
+#CNV depmap descrete value extraction
+'''
+cnv = pd.read_pickle('download/ccle_cnv_curate.pkl')
+cnv = cnv.T
+sample = pd.read_pickle('data/sample.pkl')
+dep = pd.read_pickle('data/ceres_dep.pkl')
+sample = sample.reindex( index = dep.index)
+sample = sample.loc[ sample.loc[:,'OncotreeLineage'] == 'Breast',:]
+sample = sample.loc[:, ['StrippedCellLineName','LegacyMolecularSubtype','LegacySubSubtype']]
+sample.loc['ACH-001065','LegacySubSubtype'] = 'HER2_pos'
+sample.loc['ACH-001419','LegacySubSubtype'] = 'HER2_pos'
+sample.loc['ACH-002179','LegacySubSubtype'] = 'HER2_pos'
+sample.loc['ACH-002399','LegacySubSubtype'] = 'HER2_pos'
+sample.loc['ACH-001820','LegacySubSubtype'] = 'TNBC'
+sample = sample.loc[ ~sample.loc[:,'LegacySubSubtype'].isna(),:]
+sample.loc[ sample.loc[:,'LegacySubSubtype'].str.contains('HER2pos'),'LegacySubSubtype'] = 'HER2_pos'
+sample.loc[ sample.loc[:,'LegacySubSubtype'] == 'ERneg_HER2neg','LegacySubSubtype'] = 'TNBC'
+sample.loc[ sample.loc[:,'LegacySubSubtype'] == 'ERpos_HER2neg','LegacySubSubtype'] = 'ER_pos'
+cnv = cnv.loc[ cnv.index.isin(sample.loc[:,'StrippedCellLineName']),:]
+print(cnv)
+print(cnv.loc[:,'ERBB2'])
+sample.loc[:,'depmap'] = sample.index
+sample.index = sample.loc[:,'StrippedCellLineName']
+sample = sample.reindex(index = cnv.index)
+cnv.index = sample.loc[:,'depmap']
+cnv =cnv.astype('float')
+print(cnv)
+cnv.to_pickle('data/ccle_cnv.pkl')
+#'''
+
+#Mann whitney U test and cohen d for association
+#according to subtype
+'''mut_type = 'mut'
+mut = pd.read_pickle('data/mut_onehot.pkl')
+sample = pd.read_pickle('data/sample.pkl')
+dep = pd.read_pickle('data/ceres_dep.pkl')
+sample = sample.reindex( index = dep.index)
+sample = sample.loc[ sample.loc[:,'OncotreeLineage'] == 'Breast',:]
+sample = sample.loc[:, ['StrippedCellLineName','LegacyMolecularSubtype','LegacySubSubtype']]
+sample.loc['ACH-001065','LegacySubSubtype'] = 'HER2+'
+sample.loc['ACH-001419','LegacySubSubtype'] = 'HER2+'
+sample.loc['ACH-002179','LegacySubSubtype'] = 'HER2+'
+sample.loc['ACH-002399','LegacySubSubtype'] = 'HER2+'
+sample.loc['ACH-001820','LegacySubSubtype'] = 'TNBC'
+sample = sample.loc[ ~sample.loc[:,'LegacySubSubtype'].isna(),:]
+sample.loc[ sample.loc[:,'LegacySubSubtype'].str.contains('HER2pos'),'LegacySubSubtype'] = 'HER2+'
+sample.loc[ sample.loc[:,'LegacySubSubtype'] == 'ERneg_HER2neg','LegacySubSubtype'] = 'TNBC'
+sample.loc[ sample.loc[:,'LegacySubSubtype'] == 'ERpos_HER2neg','LegacySubSubtype'] = 'ER+'
+gene = pd.read_csv('R_data/all_gene_prob_thres_lowthres.csv')
+#gene.loc[ (gene.loc[:,'sel'] == 'above') & (gene.loc[:,'clinical_phase'] >= 2), 'sel'] = 'exist_drug'
+print(gene)
+#gene = gene.loc[gene.loc[:,'sel'] != 'below',:]
+#gene = gene.loc[~gene.loc[:,'anno'].isna(),:]
+#print(gene)
+dep = dep.reindex(index = sample.index)
+eff = dep.copy()
+from scipy import stats
+mut = pd.read_pickle('data/mut_onehot.pkl')
+mut_mean = mut.mean(axis = 0)
+mut = mut.loc[:,mut_mean>0.1]
+print(mut)
+for i in ['ER+','HER2+','TNBC']:
+    print(i)
+    dep = eff.loc[ sample.loc[:,'LegacySubSubtype'] == i,:]
+    #dep = dep.loc[:, dep.columns.isin( gene.loc[ (gene.loc[:,'sel'] == 'above') & (gene.loc[:,'molecular'] == i),'gene'])]
+    dep = dep.loc[:, dep.columns.isin( gene.loc[ (gene.loc[:,'molecular'] == i),'gene'])]
+    mut_sub = mut.loc[ sample.loc[:,'LegacySubSubtype'] == i,:]
+    cut_off = 2
+    if False:
+        if len(mut_sub) * 0.1 < 2:
+            cut_off = 2
+        else:
+            cut_off = len(mut_sub)*0.1
+    mut_sub = mut_sub.loc[:, mut_sub.sum() >= cut_off]
+    p_val = pd.DataFrame( np.nan, index = dep.columns, columns = mut_sub.columns)
+    cohen_d = pd.DataFrame( np.nan, index = dep.columns, columns = mut_sub.columns)
+    for j in p_val.index:
+        for k in p_val.columns:
+            a = dep.loc[ mut_sub.loc[:,k] == 1,j]
+            b = dep.loc[ mut_sub.loc[:,k] == 0,j]
+            #c = dep.loc[ mut_sub.loc[:,k] == -1,j]
+            if len(b) == 0 or len(a) == 0:
+                continue
+            t, p = stats.mannwhitneyu( a, b)
+            p_val.loc[j,k] = p
+            s = np.sqrt(((len(a) - 1)*(a.std())**2 + (len(b)-1)*(b.std())**2) / (len(a)+len(b)-2))
+            d = (a.mean() - b.mean())/s
+            cohen_d.loc[j,k] = d
+    p_val = p_val.dropna(how = 'all', axis = 1)
+    cohen_d = cohen_d.dropna(how = 'all', axis = 1)
+    p_val.to_pickle('data/'+mut_type+'_'+i+'_ttest_p_val_prob_lowthres.pkl')
+    print(p_val)
+    cohen_d.to_pickle('data/'+mut_type+'_'+i+'_ttest_cohen_d_prob_lowthres.pkl')
+    print(cohen_d)
+#'''
+
+#CNV
+'''mut_type = 'cnv'
+#mut = pd.read_pickle('data/23Q4/oncokb_'+mut_type+'.pkl')
+mut = pd.read_pickle('data/cnv_breast_derive.pkl')
+#mut = pd.read_pickle('data/ccle_cnv.pkl')
+print(mut)
+sample = pd.read_pickle('data/sample.pkl')
+dep = pd.read_pickle('data/ceres_dep.pkl')
+sample = sample.reindex( index = dep.index)
+mut = mut.reindex(columns = dep.columns)
+sample = sample.loc[ sample.loc[:,'OncotreeLineage'] == 'Breast',:]
+sample = sample.loc[:, ['StrippedCellLineName','LegacyMolecularSubtype','LegacySubSubtype']]
+sample.loc['ACH-001065','LegacySubSubtype'] = 'HER2+'
+sample.loc['ACH-001419','LegacySubSubtype'] = 'HER2+'
+sample.loc['ACH-002179','LegacySubSubtype'] = 'HER2+'
+sample.loc['ACH-002399','LegacySubSubtype'] = 'HER2+'
+sample.loc['ACH-001820','LegacySubSubtype'] = 'TNBC'
+sample = sample.loc[ ~sample.loc[:,'LegacySubSubtype'].isna(),:]
+sample.loc[ sample.loc[:,'LegacySubSubtype'].str.contains('HER2pos'),'LegacySubSubtype'] = 'HER2+'
+sample.loc[ sample.loc[:,'LegacySubSubtype'] == 'ERneg_HER2neg','LegacySubSubtype'] = 'TNBC'
+sample.loc[ sample.loc[:,'LegacySubSubtype'] == 'ERpos_HER2neg','LegacySubSubtype'] = 'ER+'
+sample = sample.reindex(index = mut.index)
+gene = pd.read_csv('R_data/all_gene_prob_thres_lowthres.csv')
+#gene.loc[ (gene.loc[:,'sel'] == 'above') & (gene.loc[:,'clinical_phase'] >= 2), 'sel'] = 'exist_drug'
+print(gene)
+#gene = gene.loc[gene.loc[:,'sel'] != 'below',:]
+#gene = gene.loc[~gene.loc[:,'anno'].isna(),:]
+#print(gene)
+dep = dep.reindex(index = sample.index)
+eff = dep.copy()
+from scipy import stats
+#mut = pd.read_pickle('data/mut_onehot.pkl')
+mut_mean = mut.copy()
+mut_mean[mut_mean!=0] = 1
+mut_mean = mut.mean(axis = 0)
+mut = mut.loc[:,mut_mean>0.1]
+print(mut)
+#mut.to_pickle('data/cnv_breast_sel.pkl')
+if True:
+    for i in ['ER+','HER2+','TNBC']:
+        print(i)
+        dep = eff.loc[ sample.loc[:,'LegacySubSubtype'] == i,:]
+        #dep = dep.loc[:, dep.columns.isin( gene.loc[ (gene.loc[:,'sel'] == 'above') & (gene.loc[:,'molecular'] == i),'gene'])]
+        dep = dep.loc[:, dep.columns.isin( gene.loc[ (gene.loc[:,'molecular'] == i),'gene'])]
+        mut_sub = mut.loc[ sample.loc[:,'LegacySubSubtype'] == i,:]
+        if False:
+            cut_off = 2
+            if False:
+                if len(mut_sub) * 0.1 < 2:
+                    cut_off = 2
+                else:
+                    cut_off = len(mut_sub)*0.1
+        #mut_sub = mut_sub.loc[:, mut_sub.sum() >= cut_off]
+        print(mut_sub)
+        p_val = pd.DataFrame( np.nan, index = dep.columns, columns = mut_sub.columns)
+        cohen_d = pd.DataFrame( np.nan, index = dep.columns, columns = mut_sub.columns)
+        for j in p_val.index:
+            for k in p_val.columns:
+                a = dep.loc[ mut_sub.loc[:,k] == 1,j]
+                b = dep.loc[ mut_sub.loc[:,k] == 0,j]
+                #c = dep.loc[ mut_sub.loc[:,k] == -1,j]
+                if len(b) == 0 or len(a) == 0:
+                    continue
+                if len(a)/(len(a)+len(b)) <= 0.1:
+                    continue
+                if False:
+                    if len(a) == 0:
+                        t, p = stats.kruskal( b, c)
+                    elif len(b) == 0:
+                        t, p = stats.kruskal( a, c)
+                    elif len(c) == 0:
+                        t, p = stats.kruskal( a, b)
+                    else:
+                        t, p = stats.kruskal( a, b, c)
+                t, p = stats.mannwhitneyu( a, b)
+                p_val.loc[j,k] = p
+                s = np.sqrt(((len(a) - 1)*(a.std())**2 + (len(b)-1)*(b.std())**2) / (len(a)+len(b)-2))
+                d = (a.mean() - b.mean())/s
+                cohen_d.loc[j,k] = d
+        p_val = p_val.dropna(how = 'all', axis = 1)
+        cohen_d = cohen_d.dropna(how = 'all', axis = 1)
+        p_val.to_pickle('data/'+mut_type+'_'+i+'_ttest_p_val_prob_derive_amp_lowthres.pkl')
+        print(p_val)
+        cohen_d.to_pickle('data/'+mut_type+'_'+i+'_ttest_cohen_d_prob_derive_amp_lowthres.pkl')
+        print(cohen_d)
+if False:
+    for i in ['ER+','HER2+','TNBC']:
+        print(i)
+        dep = eff.loc[ sample.loc[:,'LegacySubSubtype'] == i,:]
+        #dep = dep.loc[:, dep.columns.isin( gene.loc[ (gene.loc[:,'sel'] == 'above') & (gene.loc[:,'molecular'] == i),'gene'])]
+        dep = dep.loc[:, dep.columns.isin( gene.loc[ (gene.loc[:,'molecular'] == i),'gene'])]
+        mut_sub = mut.loc[ sample.loc[:,'LegacySubSubtype'] == i,:]
+        if False:
+            cut_off = 2
+            if False:
+                if len(mut_sub) * 0.1 < 2:
+                    cut_off = 2
+                else:
+                    cut_off = len(mut_sub)*0.1
+        #mut_sub = mut_sub.loc[:, mut_sub.sum() >= cut_off]
+        print(mut_sub)
+        p_val = pd.DataFrame( np.nan, index = dep.columns, columns = mut_sub.columns)
+        cohen_d = pd.DataFrame( np.nan, index = dep.columns, columns = mut_sub.columns)
+        for j in p_val.index:
+            for k in p_val.columns:
+                a = dep.loc[ mut_sub.loc[:,k] == -1,j]
+                b = dep.loc[ mut_sub.loc[:,k] == 0,j]
+                #c = dep.loc[ mut_sub.loc[:,k] == -1,j]
+                if len(b) == 0 or len(a) == 0:
+                    continue
+                if len(a)+len(b)-2 <= 0:
+                    continue
+                if len(a)/(len(a)+len(b)) <= 0.1:
+                    continue
+                if False:
+                    if len(a) == 0:
+                        t, p = stats.kruskal( b, c)
+                    elif len(b) == 0:
+                        t, p = stats.kruskal( a, c)
+                    elif len(c) == 0:
+                        t, p = stats.kruskal( a, b)
+                    else:
+                        t, p = stats.kruskal( a, b, c)
+                t, p = stats.mannwhitneyu( a, b)
+                p_val.loc[j,k] = p
+                s = np.sqrt(((len(a) - 1)*(a.std())**2 + (len(b)-1)*(b.std())**2) / (len(a)+len(b)-2))
+                d = (a.mean() - b.mean())/s
+                cohen_d.loc[j,k] = d
+        p_val = p_val.dropna(how = 'all', axis = 1)
+        cohen_d = cohen_d.dropna(how = 'all', axis = 1)
+        p_val.to_pickle('data/'+mut_type+'_'+i+'_ttest_p_val_prob_derive_del_lowthres.pkl')
+        print(p_val)
+        cohen_d.to_pickle('data/'+mut_type+'_'+i+'_ttest_cohen_d_prob_derive_del_lowthres.pkl')
+        print(cohen_d)
+#'''
+
+#mutation association result.
+'''import statsmodels.stats.multitest as stat
+gene = pd.read_csv('R_data/all_gene_prob_thres_lowthres.csv')
+output = []
+for i in ['ER+','HER2+','TNBC']:
+    print(i)
+    tmp = gene.loc[ gene.loc[:,'molecular'] == i,:]
+    tmp = tmp.loc[ tmp.loc[:,'anno'] != 'below',:]
+    #tmp = tmp.loc[ ~tmp.loc[:,'anno'].isna(),:]
+    #print(tmp)
+
+    #p_val = pd.read_pickle('data/cnv_'+i+'_spearman_p_val.pkl')
+    #cohen_d = pd.read_pickle('data/cnv_'+i+'_spearman_r.pkl')
+    p_val = pd.read_pickle('data/mut_'+i+'_ttest_p_val_prob_lowthres.pkl')
+    print(p_val)
+    cohen_d = pd.read_pickle('data/mut_'+i+'_ttest_cohen_d_prob_lowthres.pkl')
+    p_val = p_val.loc[ p_val.index.isin( tmp.loc[:,'gene']),:]
+    cohen_d = cohen_d.reindex(index = p_val.index, columns = p_val.columns)
+    #print(p_val.min(axis = 1))
+    for j in p_val.index:
+        tmp = p_val.loc[j,:].T
+        reject, correct, _ , _ = stat.multipletests(tmp, method = 'fdr_bh', alpha = 0.05)
+        #result.loc[:,'fdr'] = correct
+        #result.loc[:,'sel'] = 'not_sig'
+        p_val.loc[j,:] = correct
+    p_val = p_val.melt(ignore_index=False)
+    p_val = p_val.reset_index()
+    cohen_d = cohen_d.melt(ignore_index=False)
+    cohen_d = cohen_d.reset_index()
+    p_val.loc[:,'cohen_d'] = cohen_d.loc[:,'value']
+    p_val.loc[:,'molecular'] = i
+    p_val.loc[:,'assign'] = 'not_sig'
+    p_val.loc[(p_val.loc[:,'value'] < 0.1) & (p_val.loc[:,'cohen_d'].abs() > 1),'assign'] = 'sig'
+    p_val.loc[:,'anno'] = p_val.loc[:,'index'] + '_' + p_val.loc[:,'Hugo_Symbol']
+    p_val.loc[:,'fdr'] = -np.log10(p_val.loc[:,'value'])
+    #p_val.loc[ ~p_val.index.isin(p_val.loc[p_val.loc[:,'assign'] == 'sig','fdr'].abs().nlargest(5).index),'anno'] = ''
+    p_val.loc[ ~p_val.index.isin(p_val.loc[ (p_val.loc[:,'assign'] == 'sig') & (p_val.loc[:,'cohen_d'] > 1), ['cohen_d','fdr']].abs().nlargest(5, ['cohen_d', 'fdr']).index),'anno'] = ''
+    p_val.loc[ p_val.loc[:,'assign'] != 'sig','anno'] = ''
+    #p_val = p_val.loc[ (p_val.loc[:,'value'] < 0.1),:]
+    #p_val = p_val.loc[ (p_val.loc[:,'value'] < 0.1) & (p_val.loc[:,'cohen_d'].abs() > 1),:]
+    print(p_val.loc[:,'assign'].value_counts())
+    print(p_val.loc[p_val.loc[:,'anno'] != '',:])
+    output.append(p_val)
+    #print(cohen_d)
+output = pd.concat(output, axis = 0)
+#print(output)
+output.to_csv('R_data/mutation_association_lowthres.txt', sep = '\t')
+#'''
+'''
+output = pd.read_csv('R_data/mutation_association_lowthres.txt', sep = '\t', index_col = 0)
+output = output.rename( columns = { 'index':'g1_dependency', 'variable':'g2_mutation', 'value': 'FDR'})
+output = output.loc[ output.loc[:,'assign'] == 'sig',:]
+output = output.drop(columns = ['assign','anno'])
+output = output.sort_values( by = ['molecular','cohen_d','FDR'], ascending = [True,False,True])
+print(output)
+output.to_csv('R_data/mutation_association_lowthres_table.txt', sep = '\t')
+#'''
+
+#CNV result
+'''
+import matplotlib.backends.backend_pdf
+import statsmodels.stats.multitest as stat
+import seaborn as sns
+gene = pd.read_csv('R_data/all_gene_prob_thres.csv')
+sample = pd.read_pickle('data/sample_breast.pkl')
+#mut = pd.read_pickle('data/ccle_cnv.pkl')
+mut = pd.read_pickle('data/cnv_breast_derive.pkl')
+sample = sample.reindex(mut.index)
+pdf = matplotlib.backends.backend_pdf.PdfPages('figure/test_box.pdf')
+eff = pd.read_pickle('data/ceres_dep.pkl')
+output = []
+for i in ['ER+','HER2+','TNBC']:
+    print(i)
+    tmp = gene.loc[ gene.loc[:,'molecular'] == i,:]
+    tmp = tmp.loc[ tmp.loc[:,'anno'] != 'below',:]
+    #tmp = tmp.loc[ ~tmp.loc[:,'anno'].isna(),:]
+    #print(tmp)
+
+    mut_mean = mut.copy()
+    mut_mean = mut_mean.loc[ sample.loc[:,'LegacySubSubtype'] == i,:]
+    efftmp = eff.reindex( index = mut_mean.index)
+    mut_mean[mut_mean!=0] = 1
+    p_val_r = pd.read_pickle('data/cnv_'+i+'_spearman_p_val.pkl')
+    cohen_d = pd.read_pickle('data/cnv_'+i+'_spearman_r.pkl')
+    #p_val = pd.read_pickle('data/cnv_'+i+'_ttest_p_val_prob_ccle.pkl')
+    p_val = pd.read_pickle('data/cnv_'+i+'_ttest_p_val_prob_derive.pkl')
+    print(p_val)
+    mut_mean = mut_mean.reindex(columns = p_val.columns)
+    mut_mean = mut_mean.mean(axis = 0)
+    mut_mean = mut_mean[mut_mean>0.25]
+    print(len(mut_mean))
+    p_val = p_val.loc[:,p_val.columns.isin(mut_mean.index)]
+    p_val = p_val.loc[ p_val.index.isin( tmp.loc[:,'gene']),:]
+    p_val_r = p_val_r.reindex( index = p_val.index, columns = p_val.columns)
+    p_val_r = p_val_r.dropna( how = 'all', axis = 1)
+    #print(p_val)
+    #print(p_val.min(axis = 1))
+    for j in p_val.index:
+        tmp = p_val.loc[j,:].T
+        reject, correct, _ , _ = stat.multipletests(tmp, method = 'fdr_bh', alpha = 0.05)
+        p_val.loc[j,:] = correct
+        tmp = p_val_r.loc[j,:].T
+        reject, correct, _ , _ = stat.multipletests(tmp, method = 'fdr_bh', alpha = 0.05)
+        p_val_r.loc[j,:] = correct
+    cohen_d = cohen_d.reindex( index = p_val.index, columns = p_val.columns)
+    p_val_r = p_val_r.reindex( index = p_val.index, columns = p_val.columns)
+    #print(cohen_d)
+    p_val = p_val.melt(ignore_index=False)
+    p_val = p_val.reset_index()
+    cohen_d = cohen_d.melt(ignore_index=False)
+    cohen_d = cohen_d.reset_index()
+    p_val_r = p_val_r.melt(ignore_index=False)
+    p_val_r = p_val_r.reset_index()
+    p_val.loc[:,'cohen_d'] = cohen_d.loc[:,'value']
+    p_val.loc[:,'r_p'] = p_val_r.loc[:,'value']
+    #p_val = p_val.loc[ (p_val.loc[:,'value'] < 0.1),:]
+    #p_val = p_val.loc[ (p_val.loc[:,'value'] < 0.1) & (p_val.loc[:,'cohen_d'].abs() > 0.5),:]
+    #p_val = p_val.loc[ (p_val.loc[:,'value'] < 0.1) & (p_val.loc[:,'cohen_d'].abs() > 0.5) & (p_val.loc[:,'r_p'] < 0.1),:]
+    p_val.loc[:,'molecular'] = i
+    p_val.loc[:,'assign'] = 'not_sig'
+    p_val.loc[(p_val.loc[:,'value'] < 0.1) & (p_val.loc[:,'cohen_d'].abs() > 0.5),'assign'] = 'sig'
+    p_val.loc[:,'anno'] = p_val.loc[:,'index'] + '_' + p_val.loc[:,'variable']
+    p_val.loc[:,'fdr'] = -np.log10(p_val.loc[:,'value'])
+    #p_val.loc[ ~p_val.index.isin(p_val.loc[ (p_val.loc[:,'assign'] == 'sig') & (p_val.loc[:,'cohen_d'] > 0.5), ['fdr','cohen_d']].abs().nlargest(5, ['fdr', 'cohen_d']).index),'anno'] = ''
+    p_val.loc[ ~p_val.index.isin(p_val.loc[ (p_val.loc[:,'assign'] == 'sig'), ['fdr']].abs().nlargest(5, ['fdr']).index),'anno'] = ''
+    p_val.loc[ p_val.loc[:,'assign'] != 'sig','anno'] = ''
+    print(p_val)
+    #print(cohen_d)
+    if len(p_val) > 0:
+        fig = plt.figure()
+        #fig, ax = plt.subplots()
+        tmp = pd.concat([ efftmp.loc[:,p_val.loc[ p_val.index[0],'index']], mut.loc[:,p_val.loc[p_val.index[0],'variable']]], axis = 1)
+        tmp.columns = ['g1','g2']
+        tmp.loc[tmp.loc[:,'g2'] == 0,'g2'] = 0
+        sns.boxplot(tmp,x = 'g2',y = 'g1')
+        #plt.hist(tmp[i].sum(axis=1)/len(tmp[i].columns), bins = 20)
+        plt.title(p_val.loc[p_val.index[0],'index']+'_'+p_val.loc[p_val.index[0],'variable']+'_'+i)
+        pdf.savefig(fig)
+        plt.close()
+    output.append(p_val)
+    #print(cohen_d)
+output = pd.concat(output, axis = 0)
+print(output)
+output.to_csv('R_data/cnv_association.txt', sep = '\t')
+pdf.close()
+#'''
+
+#CNV result
+'''import matplotlib.backends.backend_pdf
+import statsmodels.stats.multitest as stat
+import seaborn as sns
+gene = pd.read_csv('R_data/all_gene_prob_thres_lowthres.csv')
+sample = pd.read_pickle('data/sample_breast.pkl')
+#mut = pd.read_pickle('data/ccle_cnv.pkl')
+mut = pd.read_pickle('data/cnv_breast_derive.pkl')
+sample = sample.reindex(mut.index)
+eff = pd.read_pickle('data/ceres_dep.pkl')
+output = []
+selgene = [ ['TFAP2C','BHLHE23_amp', 'GATA5_amp', 'GMEB2_amp', 'TAF4_amp', 'ZNF512B_amp'], ['NDUFAF4','ADCK5_amp','CYC1_amp','CYP11B1_amp','CYP11B2_amp'], ['RNF115_amp','PIAS3_amp','HJV_amp','ITGA10_amp','UBE2Q1']]
+selgene_i = 0
+for i in ['ER+','HER2+','TNBC']:
+    print(i)
+    tmp = gene.loc[ gene.loc[:,'molecular'] == i,:]
+    tmp = tmp.loc[ tmp.loc[:,'anno'] != 'below',:]
+    #tmp = tmp.loc[ tmp.loc[:,'sel'] != 'below',:]
+    #tmp = tmp.loc[ ~tmp.loc[:,'anno'].isna(),:]
+    print(tmp)
+    mut_mean = mut.copy()
+    mut_mean = mut_mean.loc[ sample.loc[:,'LegacySubSubtype'] == i,:]
+    efftmp = eff.reindex( index = mut_mean.index)
+    mut_mean[mut_mean!=0] = 1
+    p_val_a = pd.read_pickle('data/cnv_'+i+'_ttest_p_val_prob_derive_amp_lowthres.pkl')
+    p_val_d = pd.read_pickle('data/cnv_'+i+'_ttest_p_val_prob_derive_del_lowthres.pkl')
+    cohen_da = pd.read_pickle('data/cnv_'+i+'_ttest_cohen_d_prob_derive_amp_lowthres.pkl')
+    cohen_dd = pd.read_pickle('data/cnv_'+i+'_ttest_cohen_d_prob_derive_del_lowthres.pkl')
+    mut_mean = mut_mean.mean(axis = 0)
+    mut_mean = mut_mean[mut_mean>0.25]
+    p_val_a = p_val_a.reindex(columns = cohen_da.columns)
+    p_val_d = p_val_d.reindex(columns = cohen_dd.columns)
+    p_val_a = p_val_a.loc[:,p_val_a.columns.isin(mut_mean.index)]
+    p_val_a = p_val_a.loc[ p_val_a.index.isin( tmp.loc[:,'gene']),:]
+    p_val_d = p_val_d.loc[:,p_val_d.columns.isin(mut_mean.index)]
+    p_val_d = p_val_d.loc[ p_val_d.index.isin( tmp.loc[:,'gene']),:]
+    cohen_da = cohen_da.reindex( index = p_val_a.index, columns = p_val_a.columns)
+    cohen_dd = cohen_dd.reindex( index = p_val_d.index, columns = p_val_d.columns)
+    colname = [i+'_amp' for i in p_val_a.columns]
+    p_val_a.columns = colname
+    cohen_da.columns = colname
+    colname = [i+'_amp' for i in p_val_d.columns]
+    p_val_d.columns = colname
+    cohen_dd.columns = colname
+    p_val = pd.concat([p_val_a, p_val_d], axis = 1)
+    cohen_d = pd.concat([cohen_da, cohen_dd], axis = 1)
+    for j in p_val.index:
+        tmp = p_val.loc[j,:].T
+        reject, correct, _ , _ = stat.multipletests(tmp, method = 'fdr_bh', alpha = 0.05)
+        p_val.loc[j,:] = correct
+    p_val = p_val.melt(ignore_index=False)
+    p_val = p_val.reset_index()
+    cohen_d = cohen_d.melt(ignore_index=False)
+    cohen_d = cohen_d.reset_index()
+    p_val.loc[:,'cohen_d'] = cohen_d.loc[:,'value']
+    p_val.loc[:,'molecular'] = i
+    p_val.loc[:,'assign'] = 'not_sig'
+    p_val.loc[(p_val.loc[:,'value'] < 0.1) & (p_val.loc[:,'cohen_d'].abs() > 1),'assign'] = 'sig'
+    p_val.loc[:,'anno'] = p_val.loc[:,'index'] + '_' + p_val.loc[:,'variable']
+    p_val.loc[:,'fdr'] = -np.log10(p_val.loc[:,'value'])
+    p_val.loc[ ~(p_val.loc[:,'index'].isin(selgene[selgene_i]) & p_val.loc[:,'variable'].isin(selgene[selgene_i])),'anno'] = ''
+    #p_val.loc[ ~p_val.index.isin(p_val.loc[ (p_val.loc[:,'assign'] == 'sig') & (p_val.loc[:,'cohen_d'] > 1), ['cohen_d','fdr']].abs().nlargest(5, ['cohen_d', 'fdr']).index),'anno'] = ''
+    #p_val.loc[ ~p_val.index.isin(p_val.loc[ (p_val.loc[:,'assign'] == 'sig'), ['fdr']].abs().nlargest(5, ['fdr']).index),'anno'] = ''
+    p_val.loc[ p_val.loc[:,'assign'] != 'sig','anno'] = ''
+    #print(p_val.loc[:,'assign'].value_counts())
+    #print(p_val.loc[p_val.loc[:,'assign'] == 'sig',:])
+    print(p_val.loc[p_val.loc[:,'anno'] != '',:])
+    #print(cohen_d)
+    output.append(p_val)
+    #print(cohen_d)
+    selgene_i = selgene_i + 1
+output = pd.concat(output, axis = 0)
+#print(output)
+output.to_csv('R_data/cnv_association_derive_lowthres.txt', sep = '\t')
+output = output.loc[output.loc[:,'assign'] == 'sig',:]
+#output.to_csv('R_data/cnv_association_derive_short_lowthres.txt', sep = '\t')
+#'''
+
+'''
+output = pd.read_csv('R_data/cnv_association_derive_short_lowthres.txt', sep = '\t', index_col = 0)
+output = output.rename( columns = { 'index':'g1_dependency', 'variable':'g2_CNV', 'value': 'FDR'})
+output = output.loc[ output.loc[:,'assign'] == 'sig',:]
+output = output.drop(columns = ['assign','anno'])
+output = output.sort_values( by = ['molecular','cohen_d','FDR'], ascending = [True,False,True])
+print(output)
+output.to_csv('R_data/cnv_association_lowthres_table.txt', sep = '\t')
+#'''
+
+'''
+#CNV result
+import matplotlib.backends.backend_pdf
+import statsmodels.stats.multitest as stat
+import seaborn as sns
+gene = pd.read_csv('R_data/all_gene_prob_thres.csv')
+sample = pd.read_pickle('data/sample_breast.pkl')
+#mut = pd.read_pickle('data/ccle_cnv.pkl')
+mut = pd.read_pickle('data/cnv_breast_derive.pkl')
+sample = sample.reindex(mut.index)
+eff = pd.read_pickle('data/ceres_dep.pkl')
+output = []
+for i in ['ER+','HER2+','TNBC']:
+    print(i)
+    tmp = gene.loc[ gene.loc[:,'molecular'] == i,:]
+    tmp = tmp.loc[ tmp.loc[:,'anno'] != 'below',:]
+    #tmp = tmp.loc[ ~tmp.loc[:,'anno'].isna(),:]
+    #print(tmp)
+
+    mut_mean = mut.copy()
+    mut_mean = mut_mean.loc[ sample.loc[:,'LegacySubSubtype'] == i,:]
+    efftmp = eff.reindex( index = mut_mean.index)
+    mut_mean[mut_mean!=0] = 1
+    p_val_a = pd.read_pickle('data/cnv_'+i+'_ttest_p_val_prob_derive_amp.pkl')
+    p_val_d = pd.read_pickle('data/cnv_'+i+'_ttest_p_val_prob_derive_del.pkl')
+    cohen_da = pd.read_pickle('data/cnv_'+i+'_ttest_cohen_d_prob_derive_amp.pkl')
+    cohen_dd = pd.read_pickle('data/cnv_'+i+'_ttest_cohen_d_prob_derive_del.pkl')
+    mut_mean = mut_mean.mean(axis = 0)
+    mut_mean = mut_mean[mut_mean>0.3]
+    p_val_a = p_val_a.reindex(columns = cohen_da.columns)
+    p_val_d = p_val_d.reindex(columns = cohen_dd.columns)
+    p_val_a = p_val_a.loc[:,p_val_a.columns.isin(mut_mean.index)]
+    p_val_a = p_val_a.loc[ p_val_a.index.isin( tmp.loc[:,'gene']),:]
+    p_val_d = p_val_d.loc[:,p_val_d.columns.isin(mut_mean.index)]
+    p_val_d = p_val_d.loc[ p_val_d.index.isin( tmp.loc[:,'gene']),:]
+    cohen_da = cohen_da.reindex( index = p_val_a.index, columns = p_val_a.columns)
+    cohen_dd = cohen_dd.reindex( index = p_val_d.index, columns = p_val_d.columns)
+    colname = [i+'_amp' for i in p_val_a.columns]
+    p_val_a.columns = colname
+    cohen_da.columns = colname
+    colname = [i+'_amp' for i in p_val_d.columns]
+    p_val_d.columns = colname
+    cohen_dd.columns = colname
+    p_val = pd.concat([p_val_a, p_val_d], axis = 1)
+    cohen_d = pd.concat([cohen_da, cohen_dd], axis = 1)
+    p_val = p_val.melt(ignore_index=False)
+    p_val = p_val.reset_index()
+    cohen_d = cohen_d.melt(ignore_index=False)
+    cohen_d = cohen_d.reset_index()
+    p_val.loc[:,'cohen_d'] = cohen_d.loc[:,'value']
+    p_val.loc[:,'molecular'] = i
+    p_val.loc[:,'assign'] = 'not_sig'
+    tmp = p_val.loc[:,'value']
+    reject, correct, _ , _ = stat.multipletests(tmp, method = 'fdr_bh', alpha = 0.05)
+    p_val.loc[:,'value'] = correct
+    p_val.loc[(p_val.loc[:,'value'] < 0.2) & (p_val.loc[:,'cohen_d'].abs() > 1),'assign'] = 'sig'
+    p_val.loc[:,'anno'] = p_val.loc[:,'index'] + '_' + p_val.loc[:,'variable']
+    p_val.loc[:,'fdr'] = -np.log10(p_val.loc[:,'value'])
+    p_val.loc[ ~p_val.index.isin(p_val.loc[ (p_val.loc[:,'assign'] == 'sig') & (p_val.loc[:,'cohen_d'] > 1), ['cohen_d','fdr']].abs().nlargest(5, ['fdr', 'cohen_d']).index),'anno'] = ''
+    #p_val.loc[ ~p_val.index.isin(p_val.loc[ (p_val.loc[:,'assign'] == 'sig'), ['fdr']].abs().nlargest(5, ['fdr']).index),'anno'] = ''
+    p_val.loc[ p_val.loc[:,'assign'] != 'sig','anno'] = ''
+    print(p_val.loc[:,'assign'].value_counts())
+    print(p_val.loc[p_val.loc[:,'assign'] == 'sig',:])
+    print(p_val.loc[p_val.loc[:,'anno'] != '',:])
+    #print(cohen_d)
+    output.append(p_val)
+    #print(cohen_d)
+output = pd.concat(output, axis = 0)
+print(output)
+#output.to_csv('R_data/cnv_association_derive.txt', sep = '\t')
 #'''
